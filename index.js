@@ -21,7 +21,8 @@ const boardMap = {};
 const io = new Server(server, {
   cors: {
     origin: "https://co-draw-frontend.vercel.app",
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
