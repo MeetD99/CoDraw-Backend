@@ -11,15 +11,22 @@ import { Server } from "socket.io";
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: 'https://co-draw-frontend.vercel.app',
+  credentials: true
+}));
 app.use(express.json());
-app.options('*', cors());
 app.use(cookieParser());
 const server = http.createServer(app); 
 const PORT = process.env.PORT || 5000;
 const boardMap = {};
 
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: 'https://co-draw-frontend.vercel.app',
+    credentials: true
+  }
+});
 
 // Middleware
 
