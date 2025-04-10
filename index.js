@@ -20,6 +20,7 @@ app.use(cookieParser());
 const server = http.createServer(app); 
 const PORT = process.env.PORT || 5000;
 const boardMap = {};
+const voiceRooms = {};
 
 const io = new Server(server, {
   cors: {
@@ -182,6 +183,26 @@ whiteboardRouter.get("/", authenticateUser, async (req, res) => {
   }
 });
 
+whiteboardRouter.delete("/:id", authenticateUser, async (req, res) => {
+  try {
+    const whiteboard = await Whiteboard.findById(req.params.id);
+
+    if (!whiteboard) {
+      return res.status(404).json({ error: "Whiteboard not found" });
+    }
+
+    // Ensure the whiteboard belongs to the authenticated user
+    if (whiteboard.userId.toString() !== req.userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    await whiteboard.deleteOne();
+    res.status(200).json({ message: "Whiteboard deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete whiteboard" });
+  }
+});
+
 whiteboardRouter.get("/:id", authenticateUser, async (req, res) => {
   try {
     const whiteboard = await Whiteboard.findById(req.params.id);
@@ -213,12 +234,11 @@ io.on('connection', (socket) => {
       }
     }
     if(role == 'host'){
-      // console.log(data)
       boardMap[boardId] = data;
     }
     socket.join(boardId);
     if(role == 'viewer'){
-      socket.emit('send-current-data', {data: boardMap[boardId]});
+      socket.emit('send-current-data', { data: boardMap[boardId], boardId: boardId });
     }
     console.log(`Socket ${socket.id} joined board ${boardId}`);
   });
@@ -227,9 +247,54 @@ io.on('connection', (socket) => {
     socket.to(boardId).emit('canvas-data', { boardId, data });
   });
 
+  socket.on('join-voice', ({ boardId, peerId }) => {
+    if (!voiceRooms[boardId]) voiceRooms[boardId] = {};
+
+    voiceRooms[boardId][socket.id] = peerId;
+    socket.join(`voice-${boardId}`);
+
+    console.log(`${peerId} joined voice in ${boardId}`);
+
+    // Notify all others
+    socket.to(`voice-${boardId}`).emit('user-joined-voice', {
+      socketId: socket.id,
+      peerId
+    });
+
+    // Send existing users to the new user
+    const existingPeers = Object.entries(voiceRooms[boardId])
+      .filter(([id]) => id !== socket.id)
+      .map(([id, peerId]) => ({ socketId: id, peerId }));
+
+    socket.emit('all-peers', existingPeers.map(user => user.peerId));
+  });
+
+  socket.on('leave-voice', ({ boardId }) => {
+    if (voiceRooms[boardId]) {
+      const peerId = voiceRooms[boardId][socket.id];
+      delete voiceRooms[boardId][socket.id];
+      socket.leave(`voice-${boardId}`);
+      socket.to(`voice-${boardId}`).emit('user-left-voice', {
+        socketId: socket.id,
+        peerId,
+      });
+      console.log(`${peerId} left voice in ${boardId}`);
+    }
+  });
+
 
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
+    for (const boardId in voiceRooms) {
+      if (voiceRooms[boardId][socket.id]) {
+        const peerId = voiceRooms[boardId][socket.id];
+        delete voiceRooms[boardId][socket.id];
+        socket.to(`voice-${boardId}`).emit('user-left-voice', {
+          socketId: socket.id,
+          peerId,
+        });
+      }
+    }
   });
 });
 
