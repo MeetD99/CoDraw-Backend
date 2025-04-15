@@ -93,15 +93,30 @@ const authRouter = express.Router();
 // Signup Route
 authRouter.post("/signup", async (req, res) => {
   const { name, email, password } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
   try {
+    const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ name, email, password: hashedPassword });
     await user.save();
-    res.status(201).json({ message: "User created" });
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None", // required for cross-site cookies
+    });
+
+    res.status(201).json({
+      message: "User created and logged in",
+      user: { id: user._id, name: user.name }
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
+
 
 // Login Route
 authRouter.post("/login", async (req, res) => {
