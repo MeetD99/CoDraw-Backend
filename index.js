@@ -18,7 +18,7 @@ app.use(cors({
   origin: "https://co-draw-frontend.vercel.app",
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({limit: '10mb'}));
 app.use(cookieParser());
 const server = http.createServer(app); 
 const PORT = process.env.PORT || 5000;
@@ -200,7 +200,7 @@ whiteboardRouter.post('/save', authenticateUser, async (req, res) => {
 // POST /api/whiteboards/upload-preview
 whiteboardRouter.post("/upload-preview", async (req, res) => {
   try {
-    const { image } = req.body;
+    const image = req.body.image;
     if (!image) return res.status(400).json({ error: "No image data provided" });
 
     // Extract base64 data from Data URL
