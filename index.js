@@ -24,6 +24,7 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 const boardMap = {};
 const voiceRooms = {};
+const boardHosts = {};
 
 const io = new Server(server, {
   cors: {
@@ -289,10 +290,20 @@ io.on('connection', (socket) => {
     }
     if(role == 'host'){
       boardMap[boardId] = data;
+      boardHosts[boardId] = socket.id;
     }
     socket.join(boardId);
     if(role == 'viewer'){
       socket.emit('send-current-data', { data: boardMap[boardId], boardId: boardId });
+
+      const hostSocketId = boardHosts[boardId];
+      if (hostSocketId) {
+        io.to(hostSocketId).emit('viewer-joined', {
+          boardId,
+          socketId: socket.id,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
     console.log(`Socket ${socket.id} joined board ${boardId}`);
   });
