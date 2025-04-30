@@ -7,6 +7,9 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import http from "http"; 
 import { Server } from "socket.io";
+import { v2 as cloudinary } from 'cloudinary';
+import multer from 'multer';
+import streamifier from 'streamifier';
 
 dotenv.config();
 
@@ -29,8 +32,14 @@ const io = new Server(server, {
   }
 });
 
-// Middleware
+// Cloudinary Setup
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
+const upload = multer();
 
 // MongoDB Connection
 mongoose
@@ -184,6 +193,27 @@ whiteboardRouter.post('/save', authenticateUser, async (req, res) => {
       res.status(201).json({ message: 'Whiteboard saved' });
   } catch (error) {
       res.status(400).json({ error: error.message });
+  }
+});
+
+
+// POST /api/whiteboards/upload-preview
+whiteboardRouter.post("/upload-preview", upload.single("image"), async (req, res) => {
+  try {
+    const base64Data = req.body.image.split(',')[1]; // Remove the data URL prefix
+    const buffer = Buffer.from(base64Data, 'base64'); // Convert to buffer
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { folder: "whiteboards", format: "png" },
+      (error, result) => {
+        if (error) return res.status(500).json({ error: "Cloudinary error" });
+        return res.status(200).json({ url: result.secure_url });
+      }
+    );
+
+    streamifier.createReadStream(buffer).pipe(uploadStream);
+  } catch (err) {
+    res.status(500).json({ error: "Upload failed" });
   }
 });
 
