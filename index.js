@@ -198,7 +198,7 @@ whiteboardRouter.post('/save', authenticateUser, async (req, res) => {
 
 
 // POST /api/whiteboards/upload-preview
-whiteboardRouter.post("/upload-preview", upload.single("image"), async (req, res) => {
+whiteboardRouter.post("/upload-preview", async (req, res) => {
   try {
     const base64Data = req.body.image.split(',')[1]; // Remove the data URL prefix
     const buffer = Buffer.from(base64Data, 'base64'); // Convert to buffer
