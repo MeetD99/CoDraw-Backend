@@ -200,22 +200,31 @@ whiteboardRouter.post('/save', authenticateUser, async (req, res) => {
 // POST /api/whiteboards/upload-preview
 whiteboardRouter.post("/upload-preview", async (req, res) => {
   try {
-    const base64Data = req.body.image.split(',')[1]; // Remove the data URL prefix
-    const buffer = Buffer.from(base64Data, 'base64'); // Convert to buffer
+    const { image } = req.body;
+    if (!image) return res.status(400).json({ error: "No image data provided" });
+
+    // Extract base64 data from Data URL
+    const base64Data = image.split(',')[1]; // Remove the "data:image/png;base64," prefix
+    const buffer = Buffer.from(base64Data, 'base64');
 
     const uploadStream = cloudinary.uploader.upload_stream(
       { folder: "whiteboards", format: "png" },
       (error, result) => {
-        if (error) return res.status(500).json({ error: "Cloudinary error" });
+        if (error) {
+          console.error("Cloudinary error:", error);
+          return res.status(500).json({ error: "Cloudinary error" });
+        }
         return res.status(200).json({ url: result.secure_url });
       }
     );
 
     streamifier.createReadStream(buffer).pipe(uploadStream);
   } catch (err) {
+    console.error("Upload error:", err);
     res.status(500).json({ error: "Upload failed" });
   }
 });
+
 
 
 // Get Whiteboards for Logged-in User
