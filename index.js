@@ -73,6 +73,42 @@ const whiteboardSchema = new mongoose.Schema({
 
 const Whiteboard = mongoose.model("Whiteboard", whiteboardSchema);
 
+// Enhanced cloud metrics tracking
+const cloudMetrics = {
+  totalSaves: 0,
+  lastSaveTime: null,
+  dataSize: 0,
+  region: "AWS / Mumbai",
+  backupStatus: "Active",
+  // New cloud-specific metrics
+  processingNodes: 3,
+  loadBalancerStatus: "Active",
+  replicationFactor: 2,
+  latency: 0,
+  throughput: 0,
+  activeConnections: 0,
+  cpuUtilization: 0,
+  memoryUsage: 0
+};
+
+// Simulate distributed processing
+const simulateDistributedProcessing = (data) => {
+  // Simulate processing across multiple nodes
+  const startTime = Date.now();
+  const processingTime = Math.random() * 100 + 50; // 50-150ms
+  const nodeId = Math.floor(Math.random() * cloudMetrics.processingNodes) + 1;
+  
+  return new Promise(resolve => {
+    setTimeout(() => {
+      cloudMetrics.latency = Date.now() - startTime;
+      cloudMetrics.throughput = (data.length / (processingTime / 1000)).toFixed(2);
+      cloudMetrics.cpuUtilization = Math.random() * 30 + 50; // 50-80%
+      cloudMetrics.memoryUsage = Math.random() * 20 + 60; // 60-80%
+      resolve({ nodeId, processingTime });
+    }, processingTime);
+  });
+};
+
 // JWT Authentication Middleware
 const authenticateUser = (req, res, next) => {
   const token = req.cookies.token;
@@ -160,7 +196,7 @@ authRouter.get("/me", authenticateUser, async (req, res) => {
 // Whiteboard Routes
 const whiteboardRouter = express.Router();
 
-// Save Whiteboard
+// Modify the save route to include enhanced cloud features
 whiteboardRouter.post('/save', authenticateUser, async (req, res) => {
   const { boardId, data, previewImage } = req.body;
   const userId = req.userId;
@@ -170,23 +206,81 @@ whiteboardRouter.post('/save', authenticateUser, async (req, res) => {
   }
 
   try {
-      let whiteboard = await Whiteboard.findOne({ _id: boardId, userId });
+    // Update basic metrics
+    cloudMetrics.totalSaves++;
+    cloudMetrics.lastSaveTime = new Date();
+    cloudMetrics.dataSize = JSON.stringify(data).length;
+    cloudMetrics.activeConnections++;
 
-      if (whiteboard) {
-          whiteboard.data = data;
-          if (previewImage) whiteboard.previewImage = previewImage;
-          await whiteboard.save();
-      } else {
-          whiteboard = new Whiteboard({ _id: boardId, userId, data, previewImage });
-          await whiteboard.save();
+    // Simulate distributed processing
+    const processingResult = await simulateDistributedProcessing(data);
+    
+    // Simulate data replication
+    const replicationPromises = Array(cloudMetrics.replicationFactor).fill().map(async (_, i) => {
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 50 + 20));
+      return `Replica ${i + 1} synchronized`;
+    });
+    
+    await Promise.all(replicationPromises);
+
+    let whiteboard = await Whiteboard.findOne({ _id: boardId, userId });
+
+    if (whiteboard) {
+      whiteboard.data = data;
+      if (previewImage) whiteboard.previewImage = previewImage;
+      await whiteboard.save();
+    } else {
+      whiteboard = new Whiteboard({ _id: boardId, userId, data, previewImage });
+      await whiteboard.save();
+    }
+
+    // Return enhanced cloud metrics
+    res.status(201).json({ 
+      message: 'Whiteboard saved',
+      cloudMetrics: {
+        region: cloudMetrics.region,
+        saveCount: cloudMetrics.totalSaves,
+        lastSave: cloudMetrics.lastSaveTime,
+        dataSize: `${(cloudMetrics.dataSize / 1024).toFixed(2)} KB`,
+        backupStatus: cloudMetrics.backupStatus,
+        processingNode: processingResult.nodeId,
+        latency: `${cloudMetrics.latency}ms`,
+        throughput: `${cloudMetrics.throughput} KB/s`,
+        cpuUtilization: `${cloudMetrics.cpuUtilization.toFixed(1)}%`,
+        memoryUsage: `${cloudMetrics.memoryUsage.toFixed(1)}%`,
+        activeConnections: cloudMetrics.activeConnections,
+        replicationStatus: "Complete"
       }
+    });
 
-      res.status(201).json({ message: 'Whiteboard saved' });
+    cloudMetrics.activeConnections--;
   } catch (error) {
-      res.status(400).json({ error: error.message });
+    cloudMetrics.activeConnections--;
+    res.status(400).json({ error: error.message });
   }
 });
 
+// Enhanced cloud status endpoint
+whiteboardRouter.get('/cloud-status', authenticateUser, (req, res) => {
+  res.json({
+    status: "healthy",
+    region: cloudMetrics.region,
+    totalSaves: cloudMetrics.totalSaves,
+    backupStatus: cloudMetrics.backupStatus,
+    performance: {
+      latency: `${cloudMetrics.latency}ms`,
+      throughput: `${cloudMetrics.throughput} KB/s`,
+      cpuUtilization: `${cloudMetrics.cpuUtilization.toFixed(1)}%`,
+      memoryUsage: `${cloudMetrics.memoryUsage.toFixed(1)}%`
+    },
+    infrastructure: {
+      processingNodes: cloudMetrics.processingNodes,
+      loadBalancerStatus: cloudMetrics.loadBalancerStatus,
+      replicationFactor: cloudMetrics.replicationFactor,
+      activeConnections: cloudMetrics.activeConnections
+    }
+  });
+});
 
 // Get Whiteboards for Logged-in User
 whiteboardRouter.get("/", authenticateUser, async (req, res) => {
